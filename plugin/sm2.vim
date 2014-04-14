@@ -12,17 +12,11 @@ function! Serialisable(...)
   return obj
 endfunction
 
-function! SM2_DataRecord(...)
+function! SM2_DataRecord()
   let obj = Serialisable()
   let obj.interval   = 0
   let obj.repetition = 0
   let obj.ef         = 2.5
-  if a:0
-    echo a:1['repetition']
-    let obj.interval   = a:1.interval
-    let obj.repetition = a:1.repetition
-    let obj.ef         = a:1.ef
-  endif
   return obj
 endfunction
 
@@ -89,9 +83,8 @@ function! SM2_SRS(datafile)
   func obj.get_data_record(id) dict
     let id = a:id
     if filereadable(self.datafile)
-      call map(map(readfile(self.datafile), 'eval(v:val)'),
-            \ 'extend(self.data, {v:val[0] : v:val[1]})')
-      " let self.data = json_encoding#Decode(self.datafile)
+      let self.data = map(eval(join(readfile(self.datafile), '')),
+      \ 'SM2_DataRecord().unserialise(v:val)')
     else
       throw "SM2: Cannot find file: " . self.datafile
     endif
@@ -103,15 +96,10 @@ function! SM2_SRS(datafile)
   endfunc
 
   func obj.save_data_file() dict
-    if writefile(map(items(copy(self.data)), 'string(v:val)'), self.datafile) == -1
+    if writefile([string(map(deepcopy(self.data), 'v:val.serialise()'))],
+          \ self.datafile) == -1
       throw 'SM2: Cannot save data. Write failed.'
     endif
-    " echo json_encoding#Encode([items(self.data)])
-    " " if writefile(json_encoding#Encode(map(items(copy(self.data)), 'string(v:val)')),
-    " if writefile(json_encoding#Encode(items(self.data)),
-    "       \ self.datafile) == -1
-    "   throw 'SM2: Cannot save data. Write failed.'
-    " endif
   endfunc
 
   func obj.set_data_record(id, datarecord) dict
@@ -123,9 +111,10 @@ function! SM2_SRS(datafile)
     endif
   endfunc
 
-  func obj.repetition(id, grade, commit) dict
+  func obj.repetition(id, grade, ...) dict
     let id = a:id
     let grade = a:grade
+    let commit = a:0 ? a:1 : 1
     let dr = self.get_data_record(id)
 
     if grade >= 3
@@ -150,7 +139,7 @@ function! SM2_SRS(datafile)
       let dr.ef = 1.3
     end
 
-    if a:commit
+    if commit
       call self.set_data_record(id, dr)
     endif
 
