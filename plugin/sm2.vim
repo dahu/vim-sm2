@@ -1,27 +1,15 @@
-function! Serialisable(...)
-  let obj = a:0 ? a:1 : {}
-  func obj.serialise() dict
-    return string(filter(self, 'type(v:val) != type(function("len"))'))
-  endfunc
-  func obj.unserialise(str) dict
-    for i in items(eval(a:str))
-      let self[i[0]] = i[1]
-    endfor
-    return self
-  endfunc
-  return obj
-endfunction
+" The original SM2 algorithm, converted from the Delphi source at
+" http://www.supermemo.com/english/ol/sm2source.htm
+" Barry Arthur, 20140414
 
 function! SM2_DataRecord()
-  let obj = Serialisable()
+  let obj = {}
   let obj.interval   = 0
   let obj.repetition = 0
   let obj.ef         = 2.5
   return obj
 endfunction
 
-" The original SM2 algorithm, converted from the Delphi source at
-" http://www.supermemo.com/english/ol/sm2source.htm
 function! SM2_SRS(datafile)
   let obj = {}
   let datafile = a:datafile
@@ -40,9 +28,8 @@ function! SM2_SRS(datafile)
   func obj.generate_new_id() dict
     " laughable sample data to generate an id from; better to
     " pass your own id into SM2_SRS.new(id)
-    let id1 = substitute(tempname(), '/', '', 'g')[-9:-1] .
-          \ printf("%02d", changenr()%9) .
-          \ printf("%09d", (getpid() + 1023) * localtime())
+    let id1 = substitute(tempname(), '/', '', 'g')[-10:-1] .
+          \ printf("%010d", abs((getpid() + 1023) * localtime()))
     if exists('*md5#md5')
       return md5#md5(id1)
     else
@@ -66,6 +53,9 @@ function! SM2_SRS(datafile)
     if id == ''
       let id = self.new_id()
     endif
+    if has_key(self.data, id)
+      throw 'SM2: new() : id already exists : ' . id
+    endif
     call self.set_data_record(id, SM2_DataRecord())
     return id
   endfunc
@@ -80,14 +70,20 @@ function! SM2_SRS(datafile)
     call self.save_data_file()
   endfunc
 
+  func obj.load_data_file(...) dict
+    let force = a:0 ? a:1 : 0
+    if empty(self.data) || force
+      if filereadable(self.datafile)
+        let self.data = eval(join(readfile(self.datafile), ''))
+      else
+        throw "SM2: Cannot find file: " . self.datafile
+      endif
+    endif
+  endfunc
+
   func obj.get_data_record(id) dict
     let id = a:id
-    if filereadable(self.datafile)
-      let self.data = map(eval(join(readfile(self.datafile), '')),
-      \ 'SM2_DataRecord().unserialise(v:val)')
-    else
-      throw "SM2: Cannot find file: " . self.datafile
-    endif
+    call self.load_data_file()
     if has_key(self.data, id)
       return self.data[id]
     else
@@ -96,8 +92,7 @@ function! SM2_SRS(datafile)
   endfunc
 
   func obj.save_data_file() dict
-    if writefile([string(map(deepcopy(self.data), 'v:val.serialise()'))],
-          \ self.datafile) == -1
+    if writefile([string(self.data)], self.datafile) == -1
       throw 'SM2: Cannot save data. Write failed.'
     endif
   endfunc
@@ -146,8 +141,8 @@ function! SM2_SRS(datafile)
     return dr.interval
   endfunc
 
+  call obj.load_data_file()
   return obj
 endfunction
 
 let foo = SM2_SRS('test.sm2')
-
