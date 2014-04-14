@@ -1,29 +1,39 @@
 " The original SM2 algorithm, converted from the Delphi source at
 " http://www.supermemo.com/english/ol/sm2source.htm
+"
 " Barry Arthur, 20140414
+"
+" Enhanced with due() function to drive revision cycles
 
 function! SM2_DataRecord()
   let obj = {}
+  let obj.prior_time = 0
   let obj.interval   = 0
   let obj.repetition = 0
   let obj.ef         = 2.5
   return obj
 endfunction
 
-function! SM2_SRS(datafile)
+" distance is the number of seconds since the prior_time in each record
+" use 3600 to base interval on hours
+" use 86400 to base interval on days
+function! SM2_SRS(datafile, distance)
   let obj = {}
   let datafile = a:datafile
 
   if datafile == ''
     throw 'SM2: Must provide a data file: '
   elseif ! filereadable(datafile)
-    throw 'SM2: Cannot find file: ' . datafile
+    if writefile([], datafile) == -1
+      throw 'SM2: Cannot create file: ' . datafile
+    endif
   elseif ! filewritable(datafile)
     throw 'SM2: Cannot write file: ' . datafile
   endif
 
-  let obj.datafile = datafile
   let obj.data = {}
+  let obj.datafile = datafile
+  let obj.distance = a:distance
 
   func obj.generate_new_id() dict
     " laughable sample data to generate an id from; better to
@@ -61,6 +71,14 @@ function! SM2_SRS(datafile)
   endfunc
 
   func obj.due() dict
+    let ids = []
+    let now = localtime()
+    for [id, rec] in items(self.data)
+      if (rec.prior_time + (rec.interval * self.distance)) < now
+        call add(ids, id)
+      endif
+    endfor
+    return ids
   endfunc
 
   func obj.del(id) dict
@@ -74,7 +92,10 @@ function! SM2_SRS(datafile)
     let force = a:0 ? a:1 : 0
     if empty(self.data) || force
       if filereadable(self.datafile)
-        let self.data = eval(join(readfile(self.datafile), ''))
+        let data = readfile(self.datafile)
+        if ! empty(data)
+          let self.data = eval(join(data, ''))
+        endif
       else
         throw "SM2: Cannot find file: " . self.datafile
       endif
@@ -134,6 +155,8 @@ function! SM2_SRS(datafile)
       let dr.ef = 1.3
     end
 
+    let dr.prior_time = localtime()
+
     if commit
       call self.set_data_record(id, dr)
     endif
@@ -144,5 +167,3 @@ function! SM2_SRS(datafile)
   call obj.load_data_file()
   return obj
 endfunction
-
-let foo = SM2_SRS('test.sm2')

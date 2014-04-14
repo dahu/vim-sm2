@@ -1,0 +1,58 @@
+vim-sm2
+-------
+
+__Spaced Repetition Algorithm__
+
+TIP: If you like vim-sm2 and want to share the W00t!, I'm grateful for
+https://www.gittip.com/bairuidahu/[tips] or
+http://of-vim-and-vigor.blogspot.com/[beverages].
+
+vim-sm2 is the original
+http://www.supermemo.com/english/ol/sm2.htm[SuperMemo-2] algorithm for
+spaced repetition, written in 100% pure VimL.
+
+Install
+-------
+
+vim-sm2 is plugin manager agnostic. I recommend
+https://github.com/tpope/vim-pathogen[pathogen] if you haven't already
+got a preference.
+
+Dependencies
+------------
+
+vim-sm2 uses https://github.com/vim-scripts/md5.vim.git[md5#md5] if
+you have it installed, but will get by without it if you don't.
+
+Usage
+-----
+
+Give vim-sm2 a datafile and the interval multiplier (expressed in
+seconds) that you want to use. The original SM2 algorithm was based on
+day intervals (86400 seconds) which is good for knowledge based
+learning. Use hours (3600 seconds) for more frequent revision
+sessions which is better for skills.
+
+    let srs = SM2_SRS('data.srs', 3600)
+
+Create new revisionable records:
+
+    let id = srs.new()
+
+Optionally with your own id
+
+    call srs.new(some_id)
+
+Collect the due records:
+
+    let due_ids = srs.due()
+
+Iterate these, collect the user response (grade -- a 1-5 response) and
+update the records:
+
+    for id in due_ids
+      call show_challenge(id)
+      let grade = input("How'd you go, sport? (1=dismal, 5=awesome): ")
+      call srs.repetition(id, grade)
+    endfor
+
